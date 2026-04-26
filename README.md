@@ -1,5 +1,5 @@
 # Flowsheet Inspector API
-Python API for the Flowsheet Inspector user interface.
+Python package containing library modules and API for the IDAES Flowsheet Inspector user interface.
 
 > [!NOTE]
 > See `COPYRIGHT.md` and `LICENSE.md` files in this repository before
