@@ -20,9 +20,8 @@ from .. import fsrunner
 from ..fsrunner import (
     FlowsheetRunner,
     BaseFlowsheetRunner,
-    global_flowsheet,
-    wrapped_main,
-    run_wrapped_main,
+    _find_global_flowsheet,
+    _find_wrapped_main,
     Context,
     run_flowsheet,
 )
@@ -161,44 +160,8 @@ def test_ann_docs():
 def test_find_wrapped():
     from . import test_simple_wrap
 
-    assert global_flowsheet(test_simple_wrap) is None
-    assert wrapped_main(test_simple_wrap)
-
-
-@pytest.mark.integration
-def test_run_wrapped():
-    from . import test_simple_wrap
-    from pprint import pprint
-
-    wmain = test_simple_wrap.my_main
-    report = run_wrapped_main(wmain)
-    assert report
-    assert "actions" in report
-    actions = report["actions"]
-    an = ActionNames
-    for k in (
-        name.value
-        for name in (
-            an.DOF,
-            an.MODEL_VARIABLES,
-            an.DIAGNOSTICS,
-            an.MERMAID_DIAGRAM,
-            an.STREAM_TABLE,
-            an.TIMINGS,
-        )
-    ):
-        assert k in actions
-        print(f"action={k}")
-        pprint(actions[k])
-
-
-@pytest.mark.unit
-def test_wrapped_main():
-    from . import test_simple_wrap
-
-    # with the doctest in that module, there are
-    # actually 2 wrapped mains. Either will do.
-    wmain = wrapped_main(test_simple_wrap)
+    assert _find_global_flowsheet(test_simple_wrap) == {}
+    assert _find_wrapped_main(test_simple_wrap)
 
 
 @pytest.mark.unit

@@ -280,7 +280,7 @@ def fi_main(*args, **kwargs):
     return _Wrapper.main(*args, **kwargs)
 
 
-def get_report_db(*args, **kwargs):
+def get_default_report_db():
     from .runner import Runner
 
-    return Runner.get_report_db(*args, **kwargs)
+    return Runner.get_default_report_db()

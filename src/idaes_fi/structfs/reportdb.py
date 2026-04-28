@@ -87,6 +87,10 @@ class ReportDB:
                 raise KeyError(f"Unknown target column '{k}'")
             self._tgtval[k] = v
 
+    def get_target(self) -> dict:
+        """Get (a copy of) the target keywords, as a dict {column: value}"""
+        return self._tgtval.copy()
+
     def _connect(self):
         return sqlite3.connect(self._filename)
 
@@ -164,6 +168,7 @@ class ReportDB:
                 target_kw[u] if u in target_kw else self._tgtval[u]
                 for u in self._tgtcol
             ]
+            _log.debug(f"Add a report, target={tgtvalues} (cols={self._tgtcol})")
             # get report as bytes
             if isinstance(data, str):
                 rpt_bytes = data.encode("utf-8")
@@ -231,8 +236,56 @@ class ReportDB:
                 data = blob.read()
         return json.loads(data.decode("utf-8"))
 
-    def get_last_report(self, **kwargs) -> dict | None:
+    def get_last_meta(self, **kwargs) -> dict | None:
         """Return the newest report matching the provided filters.
+
+        Examples:
+            ``db.get_last_meta(name="test_1")``
+            ``db.get_last_meta(name="hda", tags="test Monday")``
+            ``db.get_last_meta(module="my.cool.flowsheet")``
+
+        Args:
+            **kwargs: Target metadata filters keyed by names in
+                :attr:`TARGET_COLUMNS`, plus the optional ``tags`` keyword. If
+                ``tags`` is provided, its value must be a string of
+                space-separated tags that must all be present in the report.
+
+        Returns:
+            dict | None: The newest matching metadata fields, or ``None`` if no report
+            matches the filters.
+
+        Raises:
+            sqlite3.Error: If SQLite cannot execute the query or read the
+                report blob.
+            json.JSONDecodeError: If the stored payload is not valid JSON.
+        """
+        # Extract 'tags' from kwargs (may be None)
+        # (Don't put tags=None in function signature, otherwise it
+        # will confusingly be a positional argument as well)
+        tags = kwargs.pop("tags", None)
+
+        column_list = self._all_columns(exclude=("id", "report"))
+        columns = ", ".join(column_list)
+
+        # connect to db
+        with self._connect() as conn:
+            # build query
+            stmt = f"SELECT {columns} FROM {self.TABLE}"
+            stmt += self._where(kwargs, tags=tags)
+            # run query
+            row = conn.execute(stmt).fetchone()
+            # if none, done; else read the report
+            if row is None:
+                return None  # RETURN!
+
+        row_dict = {}
+        for i, col in enumerate(column_list):
+            row_dict[col] = row[i]
+
+        return row_dict
+
+    def get_last_report(self, **kwargs) -> dict | None:
+        """Return the newest metadata fields matching the provided filters.
 
         Examples:
             ``db.get_last_report(name="test_1")``

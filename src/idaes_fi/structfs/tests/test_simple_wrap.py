@@ -63,7 +63,6 @@ def initialize(m):
 def my_main():
     """Create and solve Flash flowsheet"""
 
-    print("@@ here we go")
     m = build()
     initialize(m)
 

@@ -75,6 +75,7 @@ class Runner:
 
         Args:
             steps: List of step names
+            report_db: Report database to use (otherwise default one)
         """
         self._context = {}
         self._actions: dict[str, ActionType] = {}
@@ -83,16 +84,74 @@ class Runner:
         self._failed = False
         self.reset()
         self._tags = ""  # for reporting
-        self._report_db = report_db or self._get_default_report_db(create=True)
+        self._report_db = report_db or self.get_default_report_db(create=True)
+
+    def get_report_db(self) -> ReportDB:
+        """Get current report database.
+
+        Returns:
+            ReportDB: Default report DB instance
+        """
+        return self._report_db
+
+    def set_report_db(
+        self,
+        db: Optional[ReportDB] = None,
+        dbfile: Optional[Path | str] = None,
+        create: bool = True,
+    ) -> ReportDB:
+        """Set a new value for the report database.
+
+        Args:
+            db: New report database
+            dbfile: Path to reportdb file.
+            create: Create report database if it does not exist.
+
+        Returns:
+            ReportDB: Previous report database
+
+        Raises:
+            ValueError: If neither argument is provided
+        """
+        if db is None:
+            # Get ReportDB from path
+            if dbfile is None:
+                raise ValueError("Either a `db` or `dbfile` argument is required")
+            # get a ReportDB instance, creating DB if necessary and allowed
+            do_create = False
+            if not dbfile.exists():
+                if create:
+                    do_create = True
+                else:
+                    raise ValueError(
+                        f"Database file `{dbfile}` does not exist and `create` flag is False"
+                    )
+            db = ReportDB(dbfile)
+            if do_create:
+                db.create()
+
+        assert isinstance(db, ReportDB)
+        prev, self._report_db = self._report_db, db
+
+        prev_tgt = prev.get_target()
+        if prev_tgt:
+            self._report_db.set_target(**prev_tgt)
+
+        return prev
 
     @classmethod
-    def get_report_db(cls):
-        """Get (default) report database"""
-        return cls._get_default_report_db(create=False)
+    def get_default_report_db(cls, create=False) -> ReportDB:
+        """Get the default report database.
 
-    @staticmethod
-    def _get_default_report_db(create=False):
+        Args:
+            create (bool, optional): If true, create it if not found. Defaults to False.
 
+        Raises:
+            ValueError: If create is False and the database is not found
+
+        Returns:
+            ReportDB: Default report DB instance
+        """
         # get IDAES home directory
         data_dir, _, _ = get_data_directory()
         data_path = Path(data_dir)
@@ -121,6 +180,8 @@ class Runner:
         """For attributes not in the class, look to see if they
         match attributes on the context and if so return that value.
         """
+        if key and key[0] == "_":
+            raise AttributeError(key)
         if hasattr(self._context, key):
             return getattr(self._context, key)
         raise AttributeError(
