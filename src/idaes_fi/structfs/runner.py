@@ -295,20 +295,21 @@ class Runner:
 
         # Try to complete the report target, from value of 'module'
         tgt = self.get_report_target()
-        print(f"@@ old report target: {tgt}")
         if "module" in tgt:
             tgt_changed = False
             try:
                 modname = tgt["module"]
-                mod = importlib.import_module(modname)
+                if modname:
+                    mod = importlib.import_module(modname)
+                else:
+                    mod = None
             except ImportError as err:
                 print(f"@@ import failed: {err}")
                 _log.error(f"Cannot import module {modname}")
                 mod = None
-            print(f"@@ import ok, mod={mod}")
             if mod:
+                p = Path(mod.__file__)
                 if not tgt.get("filename", "") and not tgt.get("filedir", ""):
-                    p = Path(mod.__file__)
                     tgt["filename"] = p.name
                     tgt["filedir"] = str(p.parent.absolute())
                     tgt_changed = True
@@ -319,7 +320,6 @@ class Runner:
                         tgt_changed = True
             if tgt_changed:
                 self.set_report_target(**tgt)
-        print(f"@@ new report target: {tgt}")
 
         self._last_run_steps = []
 

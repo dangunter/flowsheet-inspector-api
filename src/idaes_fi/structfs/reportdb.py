@@ -92,7 +92,12 @@ class ReportDB:
         return self._tgtval.copy()
 
     def _connect(self):
-        return sqlite3.connect(self._filename)
+        try:
+            conn = sqlite3.connect(self._filename)
+        except sqlite3.OperationalError as err:
+            _log.error(f"Cannot connect to report database '{self._filename}' ({err})")
+            raise RuntimeError(err)
+        return conn
 
     def create(self, drop=False):
         """Create the reports table in the database.
