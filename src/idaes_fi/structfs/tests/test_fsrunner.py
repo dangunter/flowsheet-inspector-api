@@ -118,7 +118,6 @@ def test_annotation(tmp_path):
 
     runner = flash_fs
     runner.run_steps(Steps.build)
-    print(runner.timings.history)
 
     ann = runner.annotate_var  # alias
     flash = runner.model.fs.flash  # alias
