@@ -57,7 +57,7 @@ from ..compute_diagnostics import (
     ComponentList,
     DiagnosticsError,
 )
-from .runner import Action
+from .action_base import Action
 from .fsrunner import BaseFlowsheetRunner
 
 
