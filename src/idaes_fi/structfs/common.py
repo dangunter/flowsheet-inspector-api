@@ -108,16 +108,14 @@ def load_module(module_or_path: str | Path):
         raise TypeError("Input must be a string or Path")
 
     if file_path is not None:
-        file_path = Path(module_or_path).absolute()
-        # file_path = os.path.abspath(module_or_path)
-
+        file_path = file_path.absolute()
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
         # Get directory structure for package simulation
         dir_path = str(file_path.parent)  # e.g., /Users/user/workspace/subdir
-        parent_dir = os.path.dirname(dir_path)  # e.g., /Users/user/workspace
-        package_name = os.path.basename(dir_path)  # e.g., "subdir"
+        parent_dir = str(file_path.parent.parent)  # e.g., /Users/user/workspace
+        package_name = str(file_path.parent.stem)  # e.g., "subdir"
         module_basename = file_path.stem
         full_module_name = f"{package_name}.{module_basename}"  # e.g., "subdir.test"
 
