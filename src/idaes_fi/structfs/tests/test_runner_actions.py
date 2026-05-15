@@ -306,10 +306,20 @@ def test_unit_model_report(set_tmp_db):
 
     rpt = rpt_action.report()
     assert rpt
-    print(rpt.model_dump_json(indent=2))
+    print(rpt.model_dump_json(indent=4))
 
     last = rpt.step_reports[rpt.last_step].reports
-    # expect 2 components
+    # expect 1 component since only flash has performance
+    assert len(last) == 1
+    for expected in ("fs.flash",):
+        assert expected in last
+
+    # allow empty performance now
+    rpt_action = UnitModelReport(runner, allow_empty_performance=True)
+    rpt_action.after_step("step1")
+    rpt = rpt_action.report()
+    last = rpt.step_reports[rpt.last_step].reports
+    # should get 2 components, one of them with empty performance data
     assert len(last) == 2
     for expected in ("fs.flash", "fs.flash.split"):
         assert expected in last

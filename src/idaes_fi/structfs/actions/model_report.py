@@ -46,47 +46,128 @@ class ModelType(str, Enum):
     flowsheet = "flowsheet"
 
 
+class PerfReport(BaseModel):
+    """Report for UnitModelReport"""
+
+    model_type: ModelType
+    performance: dict = Field(default={})
+    stream_table: dict = Field(default={})
+    dof: dict = Field(default={})
+    time_point: float = 0.0
+
+
+class ComponentReports(BaseModel):
+    reports: dict[str, PerfReport] = Field(default={})
+
+
 class UnitModelReport(Action):
     """Extract report from unit model.
 
-    The resulting report is structured as one report per
-    step, each containing details for components that
-    implement the IDAES reporting functions.
+    The 'Report' in the name of this class refers to the `report()` method you
+    call on the IDAES unit model, not to the Report class or `report()` method
+    in this class.
 
+    The resulting report is structured as a set of `reports` (in the unit model
+    method sense), one for each component in the overall model that implements
+    the reporting interface. Below is an example from the simplest
+    flowsheet with one Flash unit, with one step (`step1`) and one unit (`fs.flash`).
     ```
-    step_reports:
-        step_name:
-            reports:
-                component_name:
-                    model_type
-                    performance
-                    stream_table
-                    degrees of freedom (dof)
-                    time_point (always 0)
+    {
+        "step_reports": {
+            "step1": {
+                "reports": {
+                    "fs.flash": {
+                        "model_type": "unit",
+                        "performance": {
+                            "vars": {
+                                "Heat Duty": {
+                                    "value": 0.0,
+                                    "units": "watt",
+                                    "fixed": false,
+                                    "bounds": [
+                                        null,
+                                        null
+                                    ]
+                                },
+                                "Pressure Change": {
+                                    "value": 0.0,
+                                    "units": "pascal",
+                                    "fixed": false,
+                                    "bounds": [
+                                        null,
+                                        null
+                                    ]
+                                }
+                            }
+                        },
+                        "stream_table": {
+                            "Units": {
+                                "flow_mol": "mole / second",
+                                "mole_frac_comp benzene": "dimensionless",
+                                "mole_frac_comp toluene": "dimensionless",
+                                "temperature": "kelvin",
+                                "pressure": "pascal"
+                            },
+                            "Inlet": {
+                                "flow_mol": 1.0,
+                                "mole_frac_comp benzene": 0.5,
+                                "mole_frac_comp toluene": 0.5,
+                                "temperature": 298.15,
+                                "pressure": 101325.0
+                            },
+                            "Vapor Outlet": {
+                                "flow_mol": 0.5,
+                                "mole_frac_comp benzene": 0.5,
+                                "mole_frac_comp toluene": 0.5,
+                                "temperature": 298.15,
+                                "pressure": 101325.0
+                            },
+                            "Liquid Outlet": {
+                                "flow_mol": 0.5,
+                                "mole_frac_comp benzene": 0.5,
+                                "mole_frac_comp toluene": 0.5,
+                                "temperature": 298.15,
+                                "pressure": 101325.0
+                            }
+                        },
+                        "dof": {
+                            "dof_stat": 7,
+                            "num_variables": 48,
+                            "num_act_constraints": 41,
+                            "num_act_blocks": 5
+                        },
+                        "time_point": 0.0
+                    }
+                }
+            }
+        },
+        "last_step": "step1"
+    }
     ```
 
 
     """
 
-    class PerfReport(BaseModel):
-        """Report for UnitModelReport"""
-
-        model_type: ModelType
-        performance: dict = Field(default={})
-        stream_table: dict = Field(default={})
-        dof: dict = Field(default={})
-        time_point: float = 0.0
-
-    class ComponentReports(BaseModel):
-        reports: dict[str, UnitModelReport.PerfReport] = Field(default={})
-
     class Report(BaseModel):
         # report for each step; the report for the run is just the last one
-        step_reports: dict[str, UnitModelReport.ComponentReports] = Field(default={})
+        step_reports: dict[str, ComponentReports] = Field(default={})
         last_step: str = ""
 
     def __init__(self, *args, **kwargs):
-        """Constructor."""
+        """Constructor.
+
+        Args:
+            args:  Passed to superclass
+            kwargs: Passed to superclass, except:
+               - 'allow_empty_performance': If True, include units with
+                                            no performance data (but
+                                            possibly stream tables).
+        """
+        if "allow_empty_performance" in kwargs:
+            self._allow_empty_perf = bool(kwargs["allow_empty_performance"])
+            del kwargs["allow_empty_performance"]
+        else:
+            self._allow_empty_perf = False
         super().__init__(*args, **kwargs)
         self._dof = True  # XXX: allow user to control
         self._rpt = self.Report()
@@ -97,12 +178,14 @@ class UnitModelReport(Action):
         self._rpt.last_step = name  # make it easy to find last report
 
     def _get_component_reports(self) -> dict[str, ComponentReports]:
-        m, r = self._runner.model, self.ComponentReports()
+        m, r = self._runner.model, ComponentReports()
         for comp in m.component_objects():
             comp_name = comp.name
             # print(f"{comp_name} ({type(comp_name)})")
             if not comp_name in r and self._has_report(comp):
-                r.reports[comp_name] = self._get_report(comp)
+                rpt = self._get_report(comp)
+                if rpt is not None:
+                    r.reports[comp_name] = rpt
         return r
 
     @staticmethod
@@ -115,7 +198,7 @@ class UnitModelReport(Action):
         time_point = 0.0
 
         is_fs = hasattr(comp, "is_flowsheet") and comp.is_flowsheet
-        rpt = self.PerfReport(
+        rpt = PerfReport(
             model_type="flowsheet" if is_fs else "unit", time_point=time_point
         )
 
@@ -131,9 +214,12 @@ class UnitModelReport(Action):
         # Get performance variables
         performance = comp._get_performance_contents(time_point=time_point)
         if performance is None or performance == {}:
-            self.log.warning(
+            self.log.debug(
                 f"Empty performance contents for {rpt.model_type.value} model {comp}"
             )
+            if not self._allow_empty_perf:
+                self.log.debug(f"Skipping {comp} due to empty performance data")
+                return None  # stop!
         else:
             # reformat variable values
             for section in ("vars",):
