@@ -190,6 +190,9 @@ class Runner:
 
         return db
 
+    def test_db_connection(self):
+        self._report_db.test_connection()
+
     def __getitem__(self, key):
         """Look for key in `context`"""
         return self._context[key]

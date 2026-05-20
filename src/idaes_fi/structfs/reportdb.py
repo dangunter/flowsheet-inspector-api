@@ -117,7 +117,7 @@ class ReportDB:
             conn = sqlite3.connect(self._filename)
         except sqlite3.OperationalError as err:
             _log.error(f"Cannot connect to report database '{self._filename}' ({err})")
-            raise RuntimeError(err)
+            raise DBError(err)
         try:
             with conn:
                 yield conn
@@ -125,6 +125,10 @@ class ReportDB:
             conn.close()
             if _log.isEnabledFor(logging.DEBUG):
                 _log.debug("Done with SQLite database: {self._filename}")
+
+    def test_connection(self):
+        with self._connect() as conn:
+            pass
 
     def create(self, drop=False, exist_ok=True) -> "ReportDB":
         """Create the reports table in the database.
