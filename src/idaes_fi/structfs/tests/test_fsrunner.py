@@ -346,6 +346,9 @@ class DummyFlowsheet:
     def run_steps(self, **step_kw):
         self.run_steps_calls.append(step_kw)
 
+    def test_db_connection(self):
+        return True
+
 
 @pytest.fixture
 def fake_module_loader(monkeypatch):
