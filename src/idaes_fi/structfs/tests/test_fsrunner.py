@@ -534,19 +534,21 @@ def test_fsrunner_main(args, opts, ok, bad, tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    "args,opts,mischief",
+    "args,opts,mischief,ok",
     [
-        (["idaes_fi.structfs.tests.demo_flowsheet_structured"], {}, "chmod"),
-        (["idaes_fi.structfs.tests.demo_flowsheet_structured"], {}, "bad_table"),
+        (["idaes_fi.structfs.tests.demo_flowsheet_structured"], {}, "chmod", False),
+        (["idaes_fi.structfs.tests.demo_flowsheet_structured"], {}, "bad_table", False),
         (
             ["idaes_fi.structfs.tests.demo_flowsheet_structured"],
             {"skip-db-test": True},
             "chmod",
+            False,
         ),
-        (["idaes_fi.structfs.tests.demo_flowsheet_structured"], {}, "bad_table"),
+        (["idaes_fi.structfs.tests.demo_flowsheet_structured"], {}, "bad_table", False),
+        (["idaes_fi.structfs.tests.demo_flowsheet_structured"], {}, "no_table", True),
     ],
 )
-def test_fsrunner_main_db(args, opts, mischief, tmp_path, capsys):
+def test_fsrunner_main_db(args, opts, mischief, ok, tmp_path, capsys):
     db_file = tmp_path / "test_fsrunner_main_db.db"
     cmd = args.copy()
     for k, v in opts.items():
@@ -565,12 +567,20 @@ def test_fsrunner_main_db(args, opts, mischief, tmp_path, capsys):
         sdb.execute("CREATE TABLE reports (foo varchar);")
         sdb.commit()
         expect_out, expect_err = "no such column", None
+    elif mischief == "no_table":
+        # create empty database
+        sdb = sqlite3.connect(db_file)
+    else:
+        raise RuntimeError(f"Internal error: unknown action '{mischief}'")
     retcode = fsrunner.main(cmd)
     captured = capsys.readouterr()
-    assert retcode != 0
-    for s, strm in ((expect_out, captured.out), (expect_err, captured.err)):
-        if s is not None:
-            assert s in strm
+    if ok:
+        assert retcode == 0
+    else:
+        assert retcode != 0
+        for s, strm in ((expect_out, captured.out), (expect_err, captured.err)):
+            if s is not None:
+                assert s in strm
 
 
 def test_fsrunner_main_no_default_report_db(monkeypatch, capsys):
